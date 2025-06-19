@@ -37,7 +37,7 @@ timezone_aliases = {
 }
 
 TIMEZONE_FILE = "user_timezones.json"
-print("intents, bot command, remind_list, taskID, timezone alias = good")
+
 # helper function to parse the time 
 # returns the amount of time into seconds
 def parse_time(str):
@@ -82,8 +82,6 @@ def save_timezones(data):
 # tries to load timezones in user time_zones, if not make it empty
 
 user_timezones = load_timezones()
-print(user_timezones)
-print("Timezones = good")
 # event handlers
 
 # checks if the user has timezone
@@ -94,6 +92,7 @@ def has_timezone(user_id, user_timezones) -> bool:
 async def on_ready():
    print("ReminderBot Ready!")
 
+# adding the help command
 @bot.remove_command("help")
 @bot.command(name="help")
 
@@ -124,33 +123,33 @@ async def help_command(ctx):
     Use `$settz` to update yours.
     ```"""
     await ctx.send(help_text)
-# able to remind a speciifc user, based on your current time to the added amount of time, also repeating, and including a message
+
+# sets the user's timezone, its a requirement
 @bot.command(name='settz')
 async def settz(ctx, tz :str =''):
     global user_timezones
     newtz = resolve_timezone(tz)
     try:
-        print(newtz)
         ZoneInfo(newtz)
 
         user_id = int(ctx.author.id)
         user_timezones[user_id] = tz
-        print(user_timezones[user_id])
         save_timezones(user_timezones)
         await ctx.send(f"Your timezone has been set to `{tz}`.")
     except Exception:
         await ctx.send(" Invalid timezone. Use a format like 'est', 'cst', 'pst', 'cet', etc.'")
 
+# able to remind a speciifc user, based on your current time to the added amount of time, also repeating, and including a message
 @bot.command(name='remind')
 async def remind(ctx,user: discord.User, *args):
-
+    # no timezone set
     user_timezones = load_timezones()
     user_id = str(user.id)
     if not has_timezone(user_id,user_timezones):
         await ctx.send("user does not have a timezone, make sure to set it up using settz")
         return
+    
     global taskID
-    # parses time
     try:
         total_seconds = "0s"
         amount = 0
@@ -162,6 +161,7 @@ async def remind(ctx,user: discord.User, *args):
         tz_name = user_timezones.get(user_id)
         user_tz = ZoneInfo(resolve_timezone(tz_name))
 
+        # arguments allowing the command to be versatile
         if args and ":" in args[0]:
             time = args[0]
             args = args[1:]
@@ -173,6 +173,8 @@ async def remind(ctx,user: discord.User, *args):
             delay = parse_time(total_seconds)
         elif len(args) == 1:
             message = args[0]
+
+        # if there is a specific time detected
         if time:
             now = datetime.now(tz=user_tz)
             hour, minute = map(int, time.split(":"))
@@ -183,24 +185,21 @@ async def remind(ctx,user: discord.User, *args):
             now_utc = datetime.now(ZoneInfo("UTC"))
             absolute_delay = (target_utc - now_utc).total_seconds()
         else:
-            absolute_delay = None  # Will only use repeat-based `delay`
+            absolute_delay = None 
             amount = 1
         remind_time = datetime.now(user_tz) + timedelta(seconds=(absolute_delay or delay))
-        print(f"remind time {absolute_delay}")
         formatted_time = remind_time.strftime('%Y-%m-%d %H:%M:%S %Z')
 
     except Exception as e:
         await ctx.send(f"error: {e}")
         return
     
-    # bot making the task and adding it to the remind_list
     if(total_seconds != "0s"):
         await ctx.send(f" I'll remind {user} at `{formatted_time}` ({tz_name}) and after repeats X total seconds:{amount} X {total_seconds}")
     else:
         await ctx.send(f" I'll remind {user} at `{formatted_time}` ({tz_name}).")
-    eastern = ZoneInfo("US/Eastern")
-    now = datetime.now(eastern)
 
+    # bot making the task and adding it to the remind_list
     task = asyncio.create_task(send_reminder(ctx,user, delay,amount,message,taskID,absolute_delay))
 
     # the format of how the remind_list should be 
@@ -213,17 +212,23 @@ async def remind(ctx,user: discord.User, *args):
         "remind_time": remind_time
     }
     taskID += 1
+
 # helper function to send the reminder in discord messages based on the parsed given amount of time
 async def send_reminder(ctx,user,delay,amount,message,taskID,absolute_delay):
+    # if there is a specific time
     if absolute_delay:
         await asyncio.sleep(absolute_delay)
         reminder = remind_list.get(taskID)
         if not reminder:
             return
         await ctx.send(f"Reminder for {user.mention}: {message}")
+
+        # if there is no repeats
         if amount == 0:
             remind_list.pop(taskID, None)
             return
+        
+    # for delay and amount parameters
     for i in range(amount):
         await asyncio.sleep(delay)
         reminder = remind_list.get(taskID)
