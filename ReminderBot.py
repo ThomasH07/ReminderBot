@@ -215,16 +215,26 @@ async def helptz(ctx):
 @bot.command(name='settz')
 async def settz(ctx, tz :str =''):
     global user_timezones
-    newtz = resolve_timezone(tz)
-    try:
-        ZoneInfo(newtz)
+    if not tz:
+        await ctx.send(" Please provide a timezone abbreviation (e.g. 'est', 'cst', 'pst', 'cet').")
+        return
 
-        user_id = int(ctx.author.id)
-        user_timezones[user_id] = tz
-        save_timezones(user_timezones)
-        await ctx.send(f"Your timezone has been set to `{tz}`.")
+    newtz = resolve_timezone(tz)
+    if newtz is None:
+        await ctx.send(" Invalid timezone. Use a format like 'est', 'cst', 'pst', 'cet', etc.")
+        return
+    # validate timezone
+    try:
+        ZoneInfo(newtz) 
     except Exception:
         await ctx.send(" Invalid timezone. Use a format like 'est', 'cst', 'pst', 'cet', etc.'")
+        return
+
+    user_id = ctx.author.id 
+    user_timezones[user_id] = tz
+    save_timezones(user_timezones)
+
+    await ctx.send(f"Your timezone has been set to `{tz}`.")
 
 # able to remind a speciifc user, based on your current time to the added amount of time, also repeating, and including a message
 @bot.command(name='remind')
@@ -273,7 +283,6 @@ async def remind(ctx,user: discord.User, *args):
             absolute_delay = (target_utc - now_utc).total_seconds()
         else:
             absolute_delay = None 
-            amount = 1
         remind_time = datetime.now(user_tz) + timedelta(seconds=(absolute_delay or delay))
         formatted_time = remind_time.strftime('%Y-%m-%d %H:%M:%S %Z')
 
