@@ -15,6 +15,7 @@ import webserver
 load_dotenv()
 #bot token
 token = os.getenv('DISCORD_TOKEN')
+TIMEZONE_FILE = os.getenv('TIMEZONE_FILE')
 # logs
 handler = logging.FileHandler(filename='ReminderBot.log', encoding='utf-8',mode='w')
 # server name changes, reactions 
@@ -79,8 +80,6 @@ timezone_aliases = {
     "IRST": "Asia/Tehran",         
     
 }
-
-TIMEZONE_FILE = "user_timezones.json"
 
 # helper function to parse the time 
 # returns the amount of time into seconds
@@ -230,7 +229,7 @@ async def settz(ctx, tz :str =''):
         await ctx.send(" Invalid timezone. Use a format like 'est', 'cst', 'pst', 'cet', etc.'")
         return
 
-    user_id = ctx.author.id 
+    user_id = str(ctx.author.id)
     user_timezones[user_id] = tz
     save_timezones(user_timezones)
 
@@ -320,18 +319,16 @@ async def send_reminder(ctx,user,delay,amount,message,taskID,absolute_delay):
         await ctx.send(f"Reminder for {user.mention}: {message}")
 
         # if there is no repeats
-        if amount == 0:
-            remind_list.pop(taskID, None)
-            return
         
     # for delay and amount parameters
+    if not absolute_delay:
+        amount += 1
     for i in range(amount):
         await asyncio.sleep(delay)
         reminder = remind_list.get(taskID)
         if not reminder:
             return
         await ctx.send(f"Reminder for {user.mention}: {message}")
-
     remind_list.pop(taskID, None)
 
 # allows you to view all the available reminders for all users
