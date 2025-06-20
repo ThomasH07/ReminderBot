@@ -9,6 +9,9 @@ import asyncio
 import json
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta
+
+import webserver
+
 load_dotenv()
 #bot token
 token = os.getenv('DISCORD_TOKEN')
@@ -28,12 +31,53 @@ remind_list = {}
 taskID = 0
 # timezone_aliases
 timezone_aliases = {
+
+    #North America
+    "UTC": "Etc/UTC",
+    "GMT": "Etc/GMT",
     "EST": "America/New_York",
+    "MST": "America/Denver", 
     "CST": "America/Chicago",
     "PST": "America/Los_Angeles",
+    "AKST": "America/Anchorage", 
+    "HST": "Pacific/Honolulu",
+
+    # Europe
     "CET": "Europe/Paris",
+    "EET": "Europe/Athens",
+    "BST": "Europe/London",
+    "WET": "Europe/Lisbon",
+
+    # Asia
     "IST": "Asia/Kolkata",
-    "JST": "Asia/Tokyo"
+    "PKT": "Asia/Karachi",
+    "WIB": "Asia/Jakarta",
+    "ICT": "Asia/Bangkok", 
+    "CST-CHINA": "Asia/Shanghai",
+    "JST": "Asia/Tokyo",
+    "KST": "Asia/Seoul", 
+
+    # Australia & NZ
+    "AWST": "Australia/Perth", 
+    "ACST": "Australia/Adelaide",
+    "AEST": "Australia/Sydney",
+    "NZST": "Pacific/Auckland", 
+
+    # South America
+    "BRT": "America/Sao_Paulo", 
+    "ART": "America/Argentina/Buenos_Aires", 
+    "CLT": "America/Santiago",  
+
+    # Africa
+    "SAST": "Africa/Johannesburg",
+    "WAT": "Africa/Lagos",  
+    "EAT": "Africa/Nairobi",
+
+    # Russia & Middle East
+    "MSK": "Europe/Moscow",
+    "AST": "Asia/Riyadh", 
+    "IRST": "Asia/Tehran",         
+    
 }
 
 TIMEZONE_FILE = "user_timezones.json"
@@ -97,32 +141,75 @@ async def on_ready():
 @bot.command(name="help")
 
 async def help_command(ctx):
-    help_text = """```
-    ** THReminderBot Commands:**
+    embed = discord.Embed(
+        title="THReminderBot Commands",
+        description="Use the commands below to interact with the reminder system.",
+        color=discord.Color.blue()
+    )
 
-    `$remind @User [HH:MM] [message] [delay] [amount]`  
-    `$remind @User [message] [delay] [amount]`  
-    `$remind @User [HH:MM] [message]`
-    → Set a reminder for someone at a specific time or delay.
+    embed.add_field(
+        name=" `$help`",
+        value="Show all commands",
+        inline=False
+    )
+    embed.add_field(
+        name=" `$helptz`",
+        value="Show all available timezone codes (e.g., `EST`, `PST`, `CET`).",
+        inline=False
+    )
+    embed.add_field(
+        name=" `$settz [timezone]`",
+        value="Set your timezone (e.g. `$settz est`).",
+        inline=False
+    )
+    embed.add_field(
+        name=" `$remind @User [HH:MM] [message] [delay] [amount]`",
+        value="Set a reminder for someone at a specific time or with a delay and repeat count.",
+        inline=False
+    )
+    embed.add_field(
+        name=" `$remind @User [message] [delay] [amount]`",
+        value="Send a delayed, repeating reminder without a specific time.",
+        inline=False
+    )
+    embed.add_field(
+        name=" `$remind @User [HH:MM] [message]`",
+        value="Set a reminder for a specific time today.",
+        inline=False
+    )
 
-    `$settz [timezone]`  
-    → Set your timezone (e.g. `$settz est`).
+    embed.add_field(
+        name=" `$viewReminds`",
+        value="View all active reminders.",
+        inline=False
+    )
+    embed.add_field(
+        name=" `$delete [ID]`",
+        value="Delete a specific reminder by its ID.",
+        inline=False
+    )
+    embed.add_field(
+        name=" `$clear`",
+        value="Clear **all** your active reminders.",
+        inline=False
+    )
 
-    `$viewReminds`  
-    → View all active reminders.
+    embed.set_footer(text="Use $settz to update your timezone. See $helptz for available zones.")
 
-    `$delete [ID]`  
-    → Delete a specific reminder by ID.
+    await ctx.send(embed=embed)
+@bot.command(name='helptz')
+async def helptz(ctx):
+    tz_list = "\n".join(f"**{abbr}** → `{iana}`" for abbr, iana in timezone_aliases.items())
+    
+    embed = discord.Embed(
+        title="🕒 Timezone Help",
+        description="Use the following abbreviations with your timezone commands.",
+        color=discord.Color.blue()
+    )
+    embed.add_field(name="Supported Timezones", value=tz_list, inline=False)
+    embed.set_footer(text="Use a command like $settz EST or $time JST")
 
-    `$clear`  
-    → Clear all active reminders.
-
-    _Example:_ `$remind @Blazin 15:30 Take a break 30m 3`
-
-    Timezones supported: `EST`, `PST`, `CET`, etc.
-    Use `$settz` to update yours.
-    ```"""
-    await ctx.send(help_text)
+    await ctx.send(embed=embed)
 
 # sets the user's timezone, its a requirement
 @bot.command(name='settz')
@@ -241,12 +328,15 @@ async def send_reminder(ctx,user,delay,amount,message,taskID,absolute_delay):
 # allows you to view all the available reminders for all users
 @bot.command(name='viewReminds')
 async def viewReminds(ctx):
-    
     if not remind_list:
-        await ctx.send("No active reminders")
+        await ctx.send(" No active reminders.")
         return
-    #response - list of all the active reminders
-    response = "**Active Reminders:**\n"
+
+    embed = discord.Embed(
+        title=" Active Reminders",
+        description="Here's a list of all currently active reminders:",
+        color=discord.Color.blue()
+    )
 
     for rid, data in remind_list.items():
         user = data["user"]
@@ -254,12 +344,19 @@ async def viewReminds(ctx):
         amount = data["amount"]
         delay = data["delay"]
         remind_time = data["remind_time"]
-        # bot able to send all of the responses in one message rather than multiple messages
-        response+=(
-            f"Reminder ID: `{rid}` | User: {user} | Message: `{message}` | "
-            f"Repeats: {amount}x every {delay}s | remind_time: {remind_time}\n"
+
+        embed.add_field(
+            name=f"Reminder ID: {rid}",
+            value=(
+                f" **User:** {user}\n"
+                f" **Message:** `{message}`\n"
+                f" **Repeats:** {amount}x every {delay}s\n"
+                f" **Next Reminder:** {remind_time}\n"
+            ),
+            inline=False
         )
-    await ctx.send(response)
+
+    await ctx.send(embed=embed)
 
 # allows you to delete a specific reminder that is not needed
 @bot.command(name='delete')
@@ -287,5 +384,5 @@ async def clear(ctx):
     remind_list.clear()
     await ctx.send("successfully cleared all tasks")
 
-
+webserver.keep_alive()
 bot.run(token,log_handler=handler,log_level=logging.DEBUG)
