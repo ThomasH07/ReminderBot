@@ -141,7 +141,7 @@ async def on_ready():
 
 async def help_command(ctx):
     embed = discord.Embed(
-        title="THReminderBot Commands",
+        title="ReminderBot Commands",
         description="Use the commands below to interact with the reminder system.",
         color=discord.Color.blue()
     )
@@ -162,12 +162,12 @@ async def help_command(ctx):
         inline=False
     )
     embed.add_field(
-        name=" `$remind @User [HH:MM] [message] [delay] [amount]`",
+        name=" `$remind @User [HH:MM] [delay] [amount] [message]`",
         value="Set a reminder for someone at a specific time or with a delay and repeat count.",
         inline=False
     )
     embed.add_field(
-        name=" `$remind @User [message] [delay] [amount]`",
+        name=" `$remind @User [delay] [amount] [message]`",
         value="Send a delayed, repeating reminder without a specific time.",
         inline=False
     )
@@ -201,7 +201,7 @@ async def helptz(ctx):
     tz_list = "\n".join(f"**{abbr}** → `{iana}`" for abbr, iana in timezone_aliases.items())
     
     embed = discord.Embed(
-        title="🕒 Timezone Help",
+        title=" Timezone Help",
         description="Use the following abbreviations with your timezone commands.",
         color=discord.Color.blue()
     )
@@ -263,9 +263,9 @@ async def remind(ctx,user: discord.User, *args):
             args = args[1:]
 
         if len(args) >= 2:
-            total_seconds = args[-2]
-            amount = int(args[-1])
-            message = ' '.join(args[:-2])
+            total_seconds = args[0]
+            amount = int(args[1]) if args[1].isdigit() else 1
+            message = ' '.join(args[2:]) 
             delay = parse_time(total_seconds)
         elif len(args) == 1:
             message = args[0]
